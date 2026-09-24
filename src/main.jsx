@@ -102,7 +102,7 @@ function App(){
 
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
-      {playerError&&<div className="spotify-banner"><span>{spotifyError}</span><button onClick={()=>setPlayerError('')}>×</button></div>}
+      {playerError&&<div className="spotify-banner"><span>{playerError}</span><button onClick={()=>setPlayerError('')}>×</button></div>}
       <audio ref={audioRef} preload="metadata"/>
       {page==='home' && <HomePage tracks={tracks} playTrack={playTrack} setPage={setPage}/>}
       {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={tracks} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError} playMusicTrack={playMusicTrack} playlists={playlists} addToPlaylist={addToPlaylist}/>}
