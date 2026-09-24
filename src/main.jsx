@@ -53,57 +53,24 @@ function App(){
   const [playlistEditor,setPlaylistEditor]=useState(null)
   const [remoteTrack,setRemoteTrack]=useState(null)
   const [volume,setVolume]=useState(1)
-  const [spotifyToken,setSpotifyToken]=useState(getStoredToken)
-  const [spotifyReady,setSpotifyReady]=useState(false)
   const [spotifyError,setSpotifyError]=useState('')
-  const [spotifyMarket,setSpotifyMarket]=useState('')
-  const playerRef=useRef(null)
-  const deviceIdRef=useRef(null)
-  const track=remoteTrack||tracks[active]||  const track=remoteTrack||tracks[active]||null
+  const audioRef=useRef(null)
+  const track=remoteTrack||tracks[active]||null
 
   useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
-
+  useEffect(()=>{getFeaturedMusic().then(setTracks).catch(e=>setSpotifyError(e.message))},[])
   useEffect(()=>{
-    const params=new URLSearchParams(window.location.search)
-    const code=params.get('code');const state=params.get('state');const error=params.get('error')
-    if(error){setSpotifyError('Spotify authorization was cancelled.');return}
-    if(!code)return
-    spotifyTokenFromCode(code,state).then(token=>{setSpotifyToken(token);window.history.replaceState({},'',SPOTIFY_REDIRECT_URI)}).catch(e=>setSpotifyError(e.message))
+    const a=audioRef.current
+    if(!a)return
+    const onTime=()=>setProgress(a.duration?(a.currentTime/a.duration)*100:0)
+    const onEnd=()=>{setPlaying(false);setProgress(100)}
+    const onPlay=()=>setPlaying(true)
+    const onPause=()=>setPlaying(false)
+    a.addEventListener('timeupdate',onTime);a.addEventListener('ended',onEnd);a.addEventListener('play',onPlay);a.addEventListener('pause',onPause)
+    return()=>{a.removeEventListener('timeupdate',onTime);a.removeEventListener('ended',onEnd);a.removeEventListener('play',onPlay);a.removeEventListener('pause',onPause)}
   },[])
-
-  useEffect(()=>{
-    if(!spotifyToken)return
-    spotifyFetch('/me').then(profile=>{
-      const market=profile?.country||''
-      setSpotifyMarket(market)
-      return getFeaturedMusic(market)
-    }).then(setTracks).catch(e=>setSpotifyError(e.message))
-  },[spotifyToken])
-
-  useEffect(()=>{
-    if(!spotifyToken)return
-    const script=document.createElement('script')
-    script.src='https://sdk.scdn.co/spotify-player.js'
-    script.async=true
-    window.onSpotifyWebPlaybackSDKReady=()=>{
-      const player=new window.Spotify.Player({name:'Melodify Web Player',volume,enableMediaSession:true,getOAuthToken:cb=>cb(getStoredToken()||spotifyToken)})
-      player.addListener('ready',({device_id})=>{deviceIdRef.current=device_id;setSpotifyReady(true)})
-      player.addListener('not_ready',()=>setSpotifyReady(false))
-      player.addListener('authentication_error',({message})=>setSpotifyError(message))
-      player.addListener('account_error',({message})=>setSpotifyError(message||'Spotify Premium is required for Web Playback.'))
-      player.addListener('playback_error',({message})=>setSpotifyError(message))
-      player.addListener('player_state_changed',state=>{if(!state)return;setPlaying(!state.paused);setProgress(state.duration?state.position/state.duration*100:0)})
-      player.connect().catch(()=>setSpotifyReady(false))
-      playerRef.current=player
-    }
-    document.body.appendChild(script)
-    return()=>{playerRef.current?.disconnect();playerRef.current=null;script.remove();window.onSpotifyWebPlaybackSDKReady=null}
-  },[spotifyToken])
-
-  useEffect(()=>{playerRef.current?.setVolume(volume)},[volume])
-
-  useEffect(()=>{if(!spotifyToken||page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{const results=await searchMusic(search,spotifyMarket);setMusicResults(results);setSearchError(results.length?'':`Spotify returned 0 tracks for “${search.trim()}”.`)}catch(e){setSearchError(e.message)}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page,spotifyToken,spotifyMarket])
-
+  useEffect(()=>{if(audioRef.current)audioRef.current.volume=volume},[volume])
+  useEffect(()=>{if(page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{const results=await searchMusic(search);setMusicResults(results);setSearchError('')}catch(e){setSearchError(e.message)}finally{setSearching(false)}},350);return()=>clearTimeout(timer)},[search,page])
   const audioRef=useRef(null)
   const playAudiusTrack=async t=>{
     if(!t?.streamUrl){setSpotifyError('This Audius track is not streamable.');return}
@@ -136,7 +103,7 @@ function App(){
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
       {spotifyError&&<div className="spotify-banner"><span>{spotifyError}</span><button onClick={()=>setSpotifyError('')}>×</button></div>}
-      {!spotifyToken&&<div className="spotify-connect"><div><strong>Connect Spotify</strong><span>Sign in with Spotify to search and stream music in Melodify.</span></div><button onClick={()=>spotifyLogin()}>Connect</button></div>}
+      <audio ref={audioRef} preload="metadata"/>
       {page==='home' && <HomePage tracks={tracks} playTrack={playTrack} setPage={setPage}/>}
       {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={tracks} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError} playMusicTrack={playMusicTrack} playlists={playlists} addToPlaylist={addToPlaylist}/>}
       {page==='library' && <LibraryPage tracks={tracks} playTrack={playTrack}/>}
