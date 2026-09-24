@@ -18,7 +18,7 @@ const AUDIUS_APP_URL='https://audius.co'
 const AUDIUS_API_KEY=import.meta.env.VITE_AUDIUS_API_KEY||''
 
 function mapAudiusTrack(t){
-  return {id:String(t.id),title:t.title||'Unknown track',artist:t.user?.name||'Unknown artist',duration:Number(t.duration)||0,cover:t.artwork?._480x480||t.artwork?._1000x1000||t.artwork?._150x150||'',album:t.playlist_name||'Single',uri:String(t.id),audiusUrl:t.permalink?('https://audius.co'+t.permalink):AUDIUS_APP_URL,streamUrl:t.isStreamable==='false'||t.isStreamable===false?'':AUDIUS_API+'/tracks/'+encodeURIComponent(t.id)+'/stream',lyrics:[]}
+  return {id:String(t.id),title:t.title||'Unknown track',artist:t.user?.name||'Unknown artist',duration:Number(t.duration)||0,cover:t.artwork?._480x480||t.artwork?._1000x1000||t.artwork?._150x150||'',album:t.playlist_name||'Single',uri:String(t.id),audiusUrl:t.permalink?('https://audius.co'+t.permalink):AUDIUS_APP_URL,streamUrl:t.isStreamable==='false'||t.isStreamable===false?'':AUDIUS_API+'/tracks/'+encodeURIComponent(t.id)+'/stream'+(AUDIUS_API_KEY?'?api_key='+encodeURIComponent(AUDIUS_API_KEY):''),lyrics:[]}
 }
 async function audiusFetch(path,options={}){
   const url=new URL(AUDIUS_API+path)
