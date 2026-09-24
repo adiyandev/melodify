@@ -88,6 +88,7 @@ function App(){
   const prevTrack=()=>{const list=remoteTrack?[remoteTrack,...tracks.filter(t=>t.id!==remoteTrack.id)]:tracks;const i=list.findIndex(t=>t.id===track?.id);if(i>0)playAudiusTrack(list[i-1])}
   const addToPlaylist=(playlistId,t)=>{setPlaylists(v=>v.map(p=>p.id===playlistId?{...p,tracks:p.tracks.some(x=>x.id===t.id)?p.tracks:[...p.tracks,t]}:p))}
   const currentSeconds=(track?.duration||0)*(progress/100)
+  const seekTo=percent=>{const a=audioRef.current;if(!a||!Number.isFinite(a.duration))return;const next=Math.max(0,Math.min(100,percent));a.currentTime=a.duration*(next/100);setProgress(next)}
   const formatTime=seconds=>{const s=Math.floor(seconds||0);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
 
 
@@ -111,13 +112,13 @@ function App(){
       {page==='playlists' && <PlaylistsPage playlists={playlists} setPlaylists={setPlaylists} tracks={tracks} playTrack={playTrack} playMusicTrack={playMusicTrack} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} playlistEditor={playlistEditor} setPlaylistEditor={setPlaylistEditor}/>}
       {page==='history' && <CollectionPage title="Recently Played" subtitle="Pick up where you left off." icon={Clock3} tracks={tracks.slice().reverse()} playTrack={playTrack}/>}
       {page==='radio' && <RadioPage tracks={tracks} playTrack={playTrack}/>}
-      {lyricsPage&&track&&<LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>}
+      {lyricsPage&&track&&<LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} togglePlayback={togglePlayback} nextTrack={nextTrack} prevTrack={prevTrack} progress={progress} seekTo={seekTo} close={()=>setLyricsPage(false)} formatTime={formatTime}/>}
     </main>
 
     {artistPanelOpen&&track&&<ArtistSidebar track={track} tracks={tracks} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}
     {track&&<div className="now-playing">
       <div className="apple-player-track"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div><div className="apple-track-meta"><strong>{track.title}</strong><span>{track.artist}</span></div><button className="apple-like"><Heart size={16}/></button></div>
-      <div className="apple-player-center"><div className="apple-control-row"><button onClick={prevTrack}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={togglePlayback}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={nextTrack}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row"><span>{formatTime(currentSeconds)}</span><div className="progress"><span style={{width:progress+'%'}}/></div><span>{formatTime(track.duration)}</span></div></div>
+      <div className="apple-player-center"><div className="apple-control-row"><button onClick={prevTrack}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={togglePlayback}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={nextTrack}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row"><span>{formatTime(currentSeconds)}</span><button className="progress" aria-label="Seek" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();seekTo(((e.clientX-r.left)/r.width)*100)}}><span style={{width:progress+'%'}}/></button><span>{formatTime(track.duration)}</span></div></div>
       <div className="apple-player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/><span>Lyrics</span></button><label className="volume-control"><Volume2 size={17}/><input aria-label="Volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={e=>setVolume(Number(e.target.value))}/></label><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
     </div>}
   </div>
@@ -141,7 +142,7 @@ function Section({title,action,onAction,children}){return <section className="co
 function TrackCard({t,i,playTrack}){return <button className="track-card" onClick={()=>playTrack(i)}><img src={t.cover}/><strong>{t.title}</strong><span>{t.artist}</span><span className="card-play"><Play size={15} fill="currentColor"/></span></button>}
 function RecentRow({t,onClick}){return <button className="recent-row" onClick={onClick}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist}</span></div><Play size={16} fill="currentColor"/></button>}
 
-function LyricsPage({sidebarOpen,setSidebarOpen,track,playing,setPlaying,progress,setProgress,close,formatTime}){
+function LyricsPage({sidebarOpen,setSidebarOpen,track,playing,togglePlayback,nextTrack,prevTrack,progress,seekTo,close,formatTime}){
   const activeRef=useRef(null)
   const seconds=(progress/100)*(track.duration||222)
   const lines=track.lyrics||[]
@@ -150,8 +151,8 @@ function LyricsPage({sidebarOpen,setSidebarOpen,track,playing,setPlaying,progres
   useEffect(()=>{activeRef.current?.scrollIntoView({behavior:'smooth',block:'center'})},[activeIndex])
   return <div className="lyrics-page">
     <header className="lyrics-page-top"><button className="lyrics-back" onClick={close}><ChevronLeft size={19}/><span>Back</span></button><div className="lyrics-label">NOW PLAYING</div><button className="lyrics-more" onClick={()=>setSidebarOpen(v=>!v)}><PanelLeftClose size={17}/></button></header>
-    <div className="lyrics-layout"><div className="lyrics-art-wrap"><div className="lyrics-art"><img src={track.cover}/></div><div className="lyrics-track"><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll">{lines.map(([text,time],i)=><p key={i} ref={i===activeIndex?activeRef:null} className={'lyrics-line '+(i===activeIndex?'active-line ':'')+(i<activeIndex?'past-line':'')} onClick={()=>setProgress((time/(track.duration||222))*100)}>{text}<small>{formatTime(time)}</small></p>)}</div></div></div>
-    <div className="lyrics-player"><div className="mini-track"><img src={track.cover}/><div><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-controls"><div><button><SkipBack size={17}/></button><button className="lyrics-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button><button><SkipForward size={17}/></button></div><div className="lyrics-progress"><span style={{width:progress+'%'}}/></div><div className="lyrics-time"><span>{formatTime(seconds)}</span><span>{formatTime(track.duration)}</span></div></div><div className="lyrics-actions"><button><Heart size={17}/></button><button><Volume2 size={17}/></button></div></div>
+    <div className="lyrics-layout"><div className="lyrics-art-wrap"><div className="lyrics-art"><img src={track.cover}/></div><div className="lyrics-track"><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll">{lines.map(([text,time],i)=><p key={i} ref={i===activeIndex?activeRef:null} className={'lyrics-line '+(i===activeIndex?'active-line ':'')+(i<activeIndex?'past-line':'')} onClick={()=>seekTo((time/(track.duration||222))*100)}>{text}<small>{formatTime(time)}</small></p>)}</div></div></div>
+    <div className="lyrics-player"><div className="mini-track"><img src={track.cover}/><div><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-controls"><div><button onClick={prevTrack}><SkipBack size={17}/></button><button className="lyrics-play" onClick={togglePlayback}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button><button onClick={nextTrack}><SkipForward size={17}/></button></div><button className="lyrics-progress" aria-label="Seek" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();seekTo(((e.clientX-r.left)/r.width)*100)}}><span style={{width:progress+'%'}}/></button><div className="lyrics-time"><span>{formatTime(seconds)}</span><span>{formatTime(track.duration)}</span></div></div><div className="lyrics-actions"><button><Heart size={17}/></button><button><Volume2 size={17}/></button></div></div>
   </div>
 }
 
