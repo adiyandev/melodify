@@ -49,8 +49,8 @@ async function spotifyTokenFromCode(code,state){
 function getStoredToken(){try{const token=JSON.parse(sessionStorage.getItem(SPOTIFY_TOKEN_KEY)||'null');return token?.expires_at>Date.now()+60000?token.access_token:null}catch{return null}}
 async function spotifyFetch(path,options={},token=getStoredToken()){if(!token)throw new Error('Spotify login required.');const res=await fetch(SPOTIFY_API+path,{...options,headers:{Authorization:'Bearer '+token,...(options.headers||{})}});if(res.status===401){sessionStorage.removeItem(SPOTIFY_TOKEN_KEY);throw new Error('Spotify session expired.')}if(!res.ok){let message='Spotify request failed.';try{message=(await res.json()).error?.message||message}catch{}throw new Error(message)}return res.status===204?null:res.json()}
 function mapSpotifyTrack(t){return {id:t.id,title:t.name||'Unknown track',artist:t.artists?.map(a=>a.name).join(', ')||'Unknown artist',duration:(t.duration_ms||0)/1000,cover:t.album?.images?.[0]?.url||'',album:t.album?.name||'Single',spotifyUrl:t.external_urls?.spotify||'',uri:t.uri,lyrics:[]}}
-async function searchMusic(query){const data=await spotifyFetch('/search?'+new URLSearchParams({q:query.trim(),type:'track',limit:'30'}));return (data.tracks?.items||[]).map(mapSpotifyTrack)}
-async function getFeaturedMusic(){const data=await spotifyFetch('/search?'+new URLSearchParams({q:'Tame Impala',type:'track',limit:'20'}));return (data.tracks?.items||[]).map(mapSpotifyTrack)}
+async function searchMusic(query,market){const params={q:query.trim(),type:'track',limit:'10'};if(market)params.market=market;const data=await spotifyFetch('/search?'+new URLSearchParams(params));return (data.tracks?.items||[]).map(mapSpotifyTrack)}
+async function getFeaturedMusic(market){const params={q:'Tame Impala',type:'track',limit:'10'};if(market)params.market=market;const data=await spotifyFetch('/search?'+new URLSearchParams(params));return (data.tracks?.items||[]).map(mapSpotifyTrack)}
 function loadPlaylists(){try{return JSON.parse(localStorage.getItem('melodify-playlists')||'[]')}catch{return []}}
 
 function App(){
@@ -74,6 +74,7 @@ function App(){
   const [spotifyToken,setSpotifyToken]=useState(getStoredToken)
   const [spotifyReady,setSpotifyReady]=useState(false)
   const [spotifyError,setSpotifyError]=useState('')
+  const [spotifyMarket,setSpotifyMarket]=useState('')
   const playerRef=useRef(null)
   const deviceIdRef=useRef(null)
   const track=remoteTrack||tracks[active]||null
@@ -90,7 +91,11 @@ function App(){
 
   useEffect(()=>{
     if(!spotifyToken)return
-    getFeaturedMusic().then(setTracks).catch(e=>setSpotifyError(e.message))
+    spotifyFetch('/me').then(profile=>{
+      const market=profile?.country||''
+      setSpotifyMarket(market)
+      return getFeaturedMusic(market)
+    }).then(setTracks).catch(e=>setSpotifyError(e.message))
   },[spotifyToken])
 
   useEffect(()=>{
@@ -115,7 +120,7 @@ function App(){
 
   useEffect(()=>{playerRef.current?.setVolume(volume)},[volume])
 
-  useEffect(()=>{if(!spotifyToken||page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{setMusicResults(await searchMusic(search));setSearchError('')}catch(e){setSearchError(e.message)}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page,spotifyToken])
+  useEffect(()=>{if(!spotifyToken||page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{setMusicResults(await searchMusic(search,spotifyMarket));setSearchError('')}catch(e){setSearchError(e.message)}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page,spotifyToken,spotifyMarket])
 
   const playSpotifyTrack=async t=>{
     if(!spotifyToken){await spotifyLogin();return}
