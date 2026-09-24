@@ -54,6 +54,7 @@ function App(){
 
   useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
   useEffect(()=>{const audio=audioRef.current;if(!audio||!track.audioUrl)return;audio.volume=volume;if(playing)audio.play().catch(()=>setPlaying(false));else audio.pause()},[playing,track.audioUrl,volume])
+  useEffect(()=>{if(track.audioUrl||!playing)return;const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000);return()=>clearInterval(id)},[playing,track.audioUrl,track.duration])
   useEffect(()=>{setProgress(0)},[track.id])
   const currentSeconds=Math.min((progress/100)*(track.duration||222),track.duration||222)
   const formatTime=(seconds)=>{const s=Math.floor(seconds);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
