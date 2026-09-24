@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, User, X, PanelLeftClose } from 'lucide-react'
 import './styles.css'
@@ -96,15 +96,17 @@ function RecentRow({t,onClick}){return <button className="recent-row" onClick={o
 createRoot(document.getElementById('root')).render(<App />)
 
 function LyricsPage({track,playing,setPlaying,progress,setProgress,close,formatTime}){
+  const activeRef=useRef(null);
   const seconds=(progress/100)*(track.duration||222);
   const lines=track.lyrics||[];
   let activeIndex=-1;
   lines.forEach((line,i)=>{if(seconds>=line[1])activeIndex=i});
+  useEffect(()=>{activeRef.current?.scrollIntoView({behavior:'smooth',block:'center'})},[activeIndex]);
   return <div className="lyrics-page">
     <header className="lyrics-page-top"><button className="lyrics-back" onClick={close}><ChevronLeft size={19}/><span>Back</span></button><div className="lyrics-label">NOW PLAYING</div><button className="lyrics-more"><PanelLeftClose size={17}/></button></header>
     <div className="lyrics-layout">
       <div className="lyrics-art-wrap"><div className={'lyrics-art '+(playing?'spinning-art':'')}><img src={track.cover}/></div><div className="lyrics-track"><strong>{track.title}</strong><span>{track.artist}</span></div></div>
-      <div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll">{lines.map(([text,time],i)=><p key={i} className={'lyrics-line '+(i===activeIndex?'active-line ':'')+(i<activeIndex?'past-line':'')} onClick={()=>setProgress((time/(track.duration||222))*100)}>{text}<small>{formatTime(time)}</small></p>)}</div></div>
+      <div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll">{lines.map(([text,time],i)=><p key={i} ref={i===activeIndex?activeRef:null} className={'lyrics-line '+(i===activeIndex?'active-line ':'')+(i<activeIndex?'past-line':'')} onClick={()=>setProgress((time/(track.duration||222))*100)}>{text}<small>{formatTime(time)}</small></p>)}</div></div>
     </div>
     <div className="lyrics-player"><div className="mini-track"><img src={track.cover}/><div><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-controls"><div><button><SkipBack size={17}/></button><button className="lyrics-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button><button><SkipForward size={17}/></button></div><div className="lyrics-progress" onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setProgress(((e.clientX-r.left)/r.width)*100)}}><span style={{width:progress+'%'}}/></div><div className="lyrics-time"><span>{formatTime(seconds)}</span><span>{formatTime(track.duration||222)}</span></div></div><div className="lyrics-actions"><button><Heart size={17}/></button><button><Volume2 size={17}/></button></div></div>
   </div>
