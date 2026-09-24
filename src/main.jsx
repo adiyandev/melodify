@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, User, X, PanelLeftClose } from 'lucide-react'
+import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, User, X, PanelLeftClose, PanelRight } from 'lucide-react'
 import './styles.css'
 
 const tracks = [
@@ -29,6 +29,7 @@ function App(){
   const [lyricsPage,setLyricsPage]=useState(false)
   const [progress,setProgress]=useState(32)
   const [search,setSearch]=useState('')
+  const [sidebarOpen,setSidebarOpen]=useState(true)
   const track=tracks[active]
 
   useEffect(()=>{ if(!playing)return; const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000); return()=>clearInterval(id)},[playing,track.duration])
@@ -39,7 +40,7 @@ function App(){
   const filtered=tracks.filter(t=>(t.title+' '+t.artist).toLowerCase().includes(search.toLowerCase()))
 
   return <div className="app">
-    <aside className="sidebar">
+    <aside className={"sidebar "+(sidebarOpen?"sidebar-open":"sidebar-collapsed")}>
       <div className="brand"><span className="brand-mark">M</span><span>Melodify</span></div>
       <nav>
         {['home','search','library'].map(key=>{const P=pages[key];return <button key={key} className={'nav-item '+(page===key?'active':'')} onClick={()=>setPage(key)}><P.icon size={18}/><span>{P.label}</span></button>})}
@@ -53,7 +54,7 @@ function App(){
     </aside>
 
     <main className="main">
-      <header className="topbar"><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div><div className="profile"><User size={16}/></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
 
       {page==='home' && <HomePage playTrack={playTrack} setPage={setPage}/>}
       {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={filtered} playTrack={playTrack}/>}
@@ -62,7 +63,7 @@ function App(){
       {page==='playlists' && <PlaylistsPage tracks={tracks} playTrack={playTrack}/>}
       {page==='history' && <CollectionPage title="Recently Played" subtitle="Pick up where you left off." icon={Clock3} tracks={tracks.slice().reverse()} playTrack={playTrack}/>}
       {page==='radio' && <RadioPage playTrack={playTrack}/>}
-      {lyricsPage && <LyricsPage track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
+      {lyricsPage && <LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
     </main>
 
     <div className="now-playing">
@@ -75,6 +76,8 @@ function App(){
   </div>
 }
 
+
+function ArtistSidebar({track,playTrack,active}){return <aside className="artist-sidebar"><div className="artist-sidebar-head"><span>NOW PLAYING</span><button><X size={16}/></button></div><div className="artist-feature"><img src={track.cover}/><div><strong>{track.artist}</strong><span>Artist</span></div><button className="follow-btn">Follow</button></div><div className="artist-section"><div className="artist-section-head"><h3>About the artist</h3><button>More</button></div><p>Melodify artists bring late-night sounds, neon moods and songs made for uninterrupted listening.</p></div><div className="artist-section"><h3>Popular</h3>{tracks.slice(0,4).map((t,i)=><button className={'artist-track '+(i===active?'current':'')} key={t.title} onClick={()=>playTrack(i)}><img src={t.cover}/><span><strong>{t.title}</strong><small>{t.artist}</small></span><Play size={14} fill="currentColor"/></button>)}</div></aside>}
 function HomePage({playTrack,setPage}){
  return <section className="page"><section className="hero"><div><p className="eyebrow">GOOD AFTERNOON</p><h1>Made for your mood.</h1><p className="sub">Your music, uninterrupted.</p></div><button className="circle-btn" onClick={()=>playTrack(0)}><Play fill="currentColor"/></button></section><Section title="Made for you" action="Show all" onAction={()=>setPage('library')}><div className="cards">{tracks.slice(0,4).map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section><Section title="Recently played"><div className="recent">{tracks.slice(0,5).map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>
 }
@@ -95,7 +98,7 @@ function RecentRow({t,onClick}){return <button className="recent-row" onClick={o
 
 createRoot(document.getElementById('root')).render(<App />)
 
-function LyricsPage({track,playing,setPlaying,progress,setProgress,close,formatTime}){
+function LyricsPage({sidebarOpen,setSidebarOpen,track,playing,setPlaying,progress,setProgress,close,formatTime}){
   const activeRef=useRef(null);
   const seconds=(progress/100)*(track.duration||222);
   const lines=track.lyrics||[];
@@ -103,7 +106,7 @@ function LyricsPage({track,playing,setPlaying,progress,setProgress,close,formatT
   lines.forEach((line,i)=>{if(seconds>=line[1])activeIndex=i});
   useEffect(()=>{activeRef.current?.scrollIntoView({behavior:'smooth',block:'center'})},[activeIndex]);
   return <div className="lyrics-page">
-    <header className="lyrics-page-top"><button className="lyrics-back" onClick={close}><ChevronLeft size={19}/><span>Back</span></button><div className="lyrics-label">NOW PLAYING</div><button className="lyrics-more"><PanelLeftClose size={17}/></button></header>
+    <header className="lyrics-page-top"><button className="lyrics-back" onClick={close}><ChevronLeft size={19}/><span>Back</span></button><div className="lyrics-label">NOW PLAYING</div><button className="lyrics-more" onClick={()=>setSidebarOpen(v=>!v)}><PanelLeftClose size={17}/></button></header>
     <div className="lyrics-layout">
       <div className="lyrics-art-wrap"><div className={'lyrics-art '+(playing?'spinning-art':'')}><img src={track.cover}/></div><div className="lyrics-track"><strong>{track.title}</strong><span>{track.artist}</span></div></div>
       <div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll">{lines.map(([text,time],i)=><p key={i} ref={i===activeIndex?activeRef:null} className={'lyrics-line '+(i===activeIndex?'active-line ':'')+(i<activeIndex?'past-line':'')} onClick={()=>setProgress((time/(track.duration||222))*100)}>{text}<small>{formatTime(time)}</small></p>)}</div></div>
