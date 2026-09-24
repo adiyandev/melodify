@@ -15,12 +15,15 @@ const pages = {
 
 const AUDIUS_API='https://api.audius.co/v1'
 const AUDIUS_APP_URL='https://audius.co'
+const AUDIUS_API_KEY=import.meta.env.VITE_AUDIUS_API_KEY||''
 
 function mapAudiusTrack(t){
   return {id:String(t.id),title:t.title||'Unknown track',artist:t.user?.name||'Unknown artist',duration:Number(t.duration)||0,cover:t.artwork?._480x480||t.artwork?._1000x1000||t.artwork?._150x150||'',album:t.playlist_name||'Single',uri:String(t.id),audiusUrl:t.permalink?('https://audius.co'+t.permalink):AUDIUS_APP_URL,streamUrl:t.isStreamable==='false'||t.isStreamable===false?'':AUDIUS_API+'/tracks/'+encodeURIComponent(t.id)+'/stream',lyrics:[]}
 }
 async function audiusFetch(path,options={}){
-  const res=await fetch(AUDIUS_API+path,options)
+  const url=new URL(AUDIUS_API+path)
+  if(AUDIUS_API_KEY)url.searchParams.set('api_key',AUDIUS_API_KEY)
+  const res=await fetch(url.toString(),options)
   if(!res.ok){let message='Audius request failed.';try{message=(await res.json()).message||message}catch{}throw new Error(message)}
   return res.json()
 }
@@ -53,12 +56,12 @@ function App(){
   const [playlistEditor,setPlaylistEditor]=useState(null)
   const [remoteTrack,setRemoteTrack]=useState(null)
   const [volume,setVolume]=useState(1)
-  const [spotifyError,setSpotifyError]=useState('')
+  const [playerError,setPlayerError]=useState('')
   const audioRef=useRef(null)
   const track=remoteTrack||tracks[active]||null
 
   useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
-  useEffect(()=>{getFeaturedMusic().then(setTracks).catch(e=>setSpotifyError(e.message))},[])
+  useEffect(()=>{getFeaturedMusic().then(setTracks).catch(e=>setPlayerError(e.message))},[])
   useEffect(()=>{
     const a=audioRef.current
     if(!a)return
@@ -71,15 +74,14 @@ function App(){
   },[])
   useEffect(()=>{if(audioRef.current)audioRef.current.volume=volume},[volume])
   useEffect(()=>{if(page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{const results=await searchMusic(search);setMusicResults(results);setSearchError('')}catch(e){setSearchError(e.message)}finally{setSearching(false)}},350);return()=>clearTimeout(timer)},[search,page])
-  const audioRef=useRef(null)
   const playAudiusTrack=async t=>{
-    if(!t?.streamUrl){setSpotifyError('This Audius track is not streamable.');return}
+    if(!t?.streamUrl){setPlayerError('This Audius track is not streamable.');return}
     try{
       if(audioRef.current){audioRef.current.pause();audioRef.current.src=t.streamUrl;audioRef.current.volume=volume;await audioRef.current.play()}
-      setRemoteTrack(t);setPlaying(true);setProgress(0);setSpotifyError('')
-    }catch(e){setSpotifyError(e.message||'Unable to start playback.')}
+      setRemoteTrack(t);setPlaying(true);setProgress(0);setPlayerError('')
+    }catch(e){setPlayerError(e.message||'Unable to start playback.')}
   }
-  const togglePlayback=async()=>{if(!audioRef.current)return;try{if(audioRef.current.paused)await audioRef.current.play();else audioRef.current.pause()}catch(e){setSpotifyError(e.message||'Unable to control playback.')}}
+  const togglePlayback=async()=>{if(!audioRef.current)return;try{if(audioRef.current.paused)await audioRef.current.play();else audioRef.current.pause()}catch(e){setPlayerError(e.message||'Unable to control playback.')}}
   const playTrack=async i=>{if(!tracks[i])return;setActive(i);setRemoteTrack(null);await playAudiusTrack(tracks[i])}
   const playMusicTrack=async t=>{await playAudiusTrack(t)}
   const nextTrack=()=>{const list=remoteTrack?[remoteTrack,...tracks.filter(t=>t.id!==remoteTrack.id)]:tracks;const i=list.findIndex(t=>t.id===track?.id);if(i>=0&&i+1<list.length)playAudiusTrack(list[i+1])}
@@ -88,8 +90,6 @@ function App(){
   const currentSeconds=(track?.duration||0)*(progress/100)
   const formatTime=seconds=>{const s=Math.floor(seconds||0);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
 
-  useEffect(()=>{const a=audioRef.current;if(!a)return;const onTime=()=>setProgress(a.duration?(a.currentTime/a.duration)*100:0);const onEnd=()=>{setPlaying(false);setProgress(100)};a.addEventListener('timeupdate',onTime);a.addEventListener('ended',onEnd);a.addEventListener('play',()=>setPlaying(true));a.addEventListener('pause',()=>setPlaying(false));return()=>{a.removeEventListener('timeupdate',onTime);a.removeEventListener('ended',onEnd)}},[])
-  useEffect(()=>{if(audioRef.current)audioRef.current.volume=volume},[volume])
 
   return <div className="app">
     <aside className={"sidebar "+(sidebarOpen?"sidebar-open":"sidebar-collapsed")}>
@@ -102,7 +102,7 @@ function App(){
 
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
-      {spotifyError&&<div className="spotify-banner"><span>{spotifyError}</span><button onClick={()=>setSpotifyError('')}>×</button></div>}
+      {playerError&&<div className="spotify-banner"><span>{spotifyError}</span><button onClick={()=>setPlayerError('')}>×</button></div>}
       <audio ref={audioRef} preload="metadata"/>
       {page==='home' && <HomePage tracks={tracks} playTrack={playTrack} setPage={setPage}/>}
       {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={tracks} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError} playMusicTrack={playMusicTrack} playlists={playlists} addToPlaylist={addToPlaylist}/>}
@@ -127,7 +127,7 @@ function ArtistSidebar({track,tracks,playTrack,active,close}){return <aside clas
 
 function HomePage({tracks,playTrack,setPage}){return <section className="page"><section className="hero"><div><p className="eyebrow">GOOD AFTERNOON</p><h1>Made for your mood.</h1><p className="sub">Your music, uninterrupted.</p></div><button className="circle-btn" onClick={()=>playTrack(0)} disabled={!tracks.length}><Play fill="currentColor"/></button></section><Section title="Made for you" action="Show all" onAction={()=>setPage('library')}><div className="cards">{tracks.slice(0,4).map((t,i)=><TrackCard key={t.id} t={t} i={i} playTrack={playTrack}/>)}</div></Section><Section title="Recently played"><div className="recent">{tracks.slice(0,5).map((t,i)=><RecentRow key={t.id} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>}
 
-function SearchPage({search,setSearch,tracks,playTrack,musicResults,searching,searchError,playMusicTrack,playlists,addToPlaylist}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search songs, artists or albums"/></div></div>{search.trim().length>=2?<Section title="Audius catalog"><div className="recent">{searching?<div className="search-status">Searching Spotify…</div>:searchError?<div className="search-status">{searchError}</div>:musicResults.length?musicResults.map(t=><div className="recent-row catalog-row" key={t.id}><button className="catalog-main" onClick={()=>playMusicTrack(t)}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist} · {t.album}</span></div><Play size={16} fill="currentColor"/></button><select aria-label={"Add "+t.title+" to playlist"} defaultValue="" onChange={e=>{if(e.target.value){addToPlaylist(e.target.value,t);e.target.value=''}}}><option value="">＋</option>{playlists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>):<div className="search-status">No Audius results found.</div>}</div></Section>:<Section title="Trending on Audius"><div className="cards">{tracks.map((t,i)=><TrackCard key={t.id} t={t} i={i} playTrack={playTrack}/>)}</div></Section>}</section>}
+function SearchPage({search,setSearch,tracks,playTrack,musicResults,searching,searchError,playMusicTrack,playlists,addToPlaylist}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search songs, artists or albums"/></div></div>{search.trim().length>=2?<Section title="Audius catalog"><div className="recent">{searching?<div className="search-status">Searching Audius…</div>:searchError?<div className="search-status">{searchError}</div>:musicResults.length?musicResults.map(t=><div className="recent-row catalog-row" key={t.id}><button className="catalog-main" onClick={()=>playMusicTrack(t)}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist} · {t.album}</span></div><Play size={16} fill="currentColor"/></button><select aria-label={"Add "+t.title+" to playlist"} defaultValue="" onChange={e=>{if(e.target.value){addToPlaylist(e.target.value,t);e.target.value=''}}}><option value="">＋</option>{playlists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>):<div className="search-status">No Audius results found.</div>}</div></Section>:<Section title="Trending on Audius"><div className="cards">{tracks.map((t,i)=><TrackCard key={t.id} t={t} i={i} playTrack={playTrack}/>)}</div></Section>}</section>}
 
 function LibraryPage({tracks,playTrack}){return <section className="page"><div className="page-title"><p className="eyebrow">COLLECTION</p><h1>Your Library</h1><p className="sub">Everything you keep close.</p></div><Section title="Saved music"><div className="recent">{tracks.map((t,i)=><RecentRow key={t.id} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>}
 
