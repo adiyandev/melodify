@@ -68,11 +68,9 @@ function App(){
     </main>
 
     {artistPanelOpen && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    <div className="now-playing">
-      <div className="art-stage"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div></div>
-      <div className="player-info"><div><strong>{track.title}</strong><span>{track.artist}</span></div><button><Heart size={17}/></button></div>
-      <div className="controls"><div className="control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="play-main" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="progress"><span style={{width:progress+'%'}}/></div><div className="time"><span>{formatTime(currentSeconds)}</span><span>{formatTime(track.duration||222)}</span></div></div>
-      <div className="player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/>Lyrics</button><button><Volume2 size={17}/></button><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
-
+      <div className="apple-player-track"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div><div className="apple-track-meta"><strong>{track.title}</strong><span>{track.artist}</span></div><button className="apple-like"><Heart size={16}/></button></div>
+      <div className="apple-player-center"><div className="apple-control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row"><span>{formatTime(currentSeconds)}</span><div className="progress"><span style={{width:progress+'%'}}/></div><span>{formatTime(track.duration||222)}</span></div></div>
+      <div className="apple-player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/><span>Lyrics</span></button><button><Volume2 size={17}/></button><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
     </div>
   </div>
 }
