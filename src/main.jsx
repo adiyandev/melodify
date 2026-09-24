@@ -22,6 +22,21 @@ const pages = {
   radio: { label:'Radio', icon:Radio },
 }
 
+const MUSICBRAINZ_URL='https://musicbrainz.org/ws/2';
+const COVER_ART_URL='https://coverartarchive.org';
+
+async function searchMusic(query){
+  const q=query.trim(); if(!q)return [];
+  const res=await fetch(MUSICBRAINZ_URL+'/recording/?query='+encodeURIComponent(q)+'&fmt=json&limit=20',{headers:{Accept:'application/json'}});
+  if(!res.ok)throw new Error('Music search failed');
+  const data=await res.json();
+  return Promise.all((data.recordings||[]).map(async r=>{
+    const release=r.releases&&r.releases[0]; let cover='https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=80';
+    if(release&&release.id){try{const x=await fetch(COVER_ART_URL+'/release/'+release.id+'/front-250');if(x.ok)cover=x.url}catch{}}
+    return {id:r.id,title:r.title||'Unknown track',artist:r['artist-credit']?.map(a=>a.name||a.artist?.name).filter(Boolean).join(', ')||'Unknown artist',duration:r.length?Math.round(r.length/1000):0,cover,album:release?.title||'Unknown album',lyrics:[]};
+  }));
+}
+function loadPlaylists(){try{return JSON.parse(localStorage.getItem('melodify-playlists')||'[]')}catch{return []}}
 function App(){
   const [page,setPage]=useState('home')
   const [active,setActive]=useState(0)
@@ -31,13 +46,21 @@ function App(){
   const [search,setSearch]=useState('')
   const [sidebarOpen,setSidebarOpen]=useState(true)
   const [artistPanelOpen,setArtistPanelOpen]=useState(false)
+  const [musicResults,setMusicResults]=useState([])
+  const [searching,setSearching]=useState(false)
+  const [searchError,setSearchError]=useState('')
+  const [playlists,setPlaylists]=useState(loadPlaylists)
+  const [selectedPlaylist,setSelectedPlaylist]=useState(null)
+  const [playlistEditor,setPlaylistEditor]=useState(null)
   const track=tracks[active]
 
+  useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
   useEffect(()=>{ if(!playing)return; const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000); return()=>clearInterval(id)},[playing,track.duration])
   const currentSeconds=Math.min((progress/100)*(track.duration||222),track.duration||222)
   const formatTime=(seconds)=>{const s=Math.floor(seconds);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
 
   const playTrack=(i)=>{setActive(i);setProgress(0);setPlaying(true)}
+  useEffect(()=>{if(page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{setMusicResults(await searchMusic(search));setSearchError('')}catch{setSearchError('Music search is temporarily unavailable.')}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page])
   const filtered=tracks.filter(t=>(t.title+' '+t.artist).toLowerCase().includes(search.toLowerCase()))
 
   return <div className="app">
@@ -58,10 +81,10 @@ function App(){
       <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
 
       {page==='home' && <HomePage playTrack={playTrack} setPage={setPage}/>}
-      {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={filtered} playTrack={playTrack}/>}
+      {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={filtered} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError}/>}
       {page==='library' && <LibraryPage tracks={tracks} playTrack={playTrack}/>}
       {page==='liked' && <CollectionPage title="Liked Songs" subtitle="Your favorite tracks in one place." icon={Heart} tracks={tracks.slice(0,4)} playTrack={playTrack}/>}
-      {page==='playlists' && <PlaylistsPage tracks={tracks} playTrack={playTrack}/>}
+      {page==='playlists' && <PlaylistsPage playlists={playlists} setPlaylists={setPlaylists} tracks={tracks} playTrack={playTrack} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} playlistEditor={playlistEditor} setPlaylistEditor={setPlaylistEditor}/>}
       {page==='history' && <CollectionPage title="Recently Played" subtitle="Pick up where you left off." icon={Clock3} tracks={tracks.slice().reverse()} playTrack={playTrack}/>}
       {page==='radio' && <RadioPage playTrack={playTrack}/>}
       {lyricsPage && <LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
@@ -81,13 +104,13 @@ function HomePage({playTrack,setPage}){
  return <section className="page"><section className="hero"><div><p className="eyebrow">GOOD AFTERNOON</p><h1>Made for your mood.</h1><p className="sub">Your music, uninterrupted.</p></div><button className="circle-btn" onClick={()=>playTrack(0)}><Play fill="currentColor"/></button></section><Section title="Made for you" action="Show all" onAction={()=>setPage('library')}><div className="cards">{tracks.slice(0,4).map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section><Section title="Recently played"><div className="recent">{tracks.slice(0,5).map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>
 }
 
-function SearchPage({search,setSearch,tracks,playTrack}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="What do you want to listen to?"/></div></div><Section title={search?'Results':'Browse all'}><div className="cards">{tracks.map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section></section>}
+function SearchPage({search,setSearch,tracks,playTrack,musicResults,searching,searchError}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search songs, artists or albums"/></div></div>{search.trim().length>=2?<Section title="Music catalog"><div className="recent">{searching?<div className="search-status">Searching the music catalog…</div>:searchError?<div className="search-status">{searchError}</div>:musicResults.length?musicResults.map(t=><button className="recent-row" key={t.id}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist} · {t.album}</span></div><Play size={16} fill="currentColor"/></button>):<div className="search-status">No catalog results found.</div>}</div></Section>:<Section title="Browse all"><div className="cards">{tracks.map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section>}</section>}
 
 function LibraryPage({tracks,playTrack}){return <section className="page"><div className="page-title"><p className="eyebrow">COLLECTION</p><h1>Your Library</h1><p className="sub">Everything you keep close.</p></div><Section title="Saved music"><div className="recent">{tracks.map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>}
 
 function CollectionPage({title,subtitle,icon:Icon,tracks,playTrack}){return <section className="page"><div className="collection-hero"><div className="collection-icon"><Icon/></div><div><p className="eyebrow">YOUR MUSIC</p><h1>{title}</h1><p className="sub">{subtitle}</p></div></div><Section title="Tracks"><div className="recent">{tracks.map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(tracks.indexOf(t))}/>)}</div></Section></section>}
 
-function PlaylistsPage({tracks,playTrack}){return <section className="page"><div className="page-title"><p className="eyebrow">YOUR MUSIC</p><h1>Playlists</h1></div><div className="playlist-grid">{['Late Night','Focus Mode','Main Character','Weekend Energy'].map((name,i)=><button className="playlist-card" key={name} onClick={()=>playTrack(i)}><img src={tracks[i].cover}/><div><strong>{name}</strong><span>{tracks.length} tracks</span></div><Play size={18} fill="currentColor"/></button>)}</div></section>}
+function PlaylistsPage({playlists,setPlaylists,tracks,selectedPlaylist,setSelectedPlaylist,playlistEditor,setPlaylistEditor}){const create=()=>{const p={id:Date.now().toString(),name:'New Playlist',description:'',tracks:[]};setPlaylists(v=>[...v,p]);setPlaylistEditor(p)};const update=patch=>{setPlaylists(v=>v.map(p=>p.id===playlistEditor.id?{...p,...patch}:p));setPlaylistEditor(p=>({...p,...patch}))};const remove=id=>{setPlaylists(v=>v.filter(p=>p.id!==id));setSelectedPlaylist(null);setPlaylistEditor(null)};if(selectedPlaylist){const p=playlists.find(x=>x.id===selectedPlaylist.id)||selectedPlaylist;return <section className="page"><button className="back-link" onClick={()=>setSelectedPlaylist(null)}>← All playlists</button><div className="playlist-detail"><div className="playlist-detail-cover"><img src={p.tracks[0]?.cover||tracks[0].cover}/></div><div><p className="eyebrow">PLAYLIST</p><h1>{p.name}</h1><p className="sub">{p.description||'Your personal collection.'}</p><div className="playlist-detail-actions"><button onClick={()=>setPlaylistEditor(p)}>Edit playlist</button><button className="danger" onClick={()=>remove(p.id)}>Delete</button></div></div></div><Section title={p.tracks.length+' tracks'}><div className="recent">{p.tracks.map(t=><button className="recent-row" key={t.id}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist}</span></div><Play size={16} fill="currentColor"/></button>)}{!p.tracks.length&&<div className="search-status">This playlist is empty.</div>}</div></Section></section>}return <section className="page"><div className="page-title playlist-heading"><div><p className="eyebrow">YOUR MUSIC</p><h1>Playlists</h1></div><button className="create-playlist" onClick={create}>+ New playlist</button></div><div className="playlist-grid">{playlists.map(p=><button className="playlist-card" key={p.id} onClick={()=>setSelectedPlaylist(p)}><img src={p.tracks[0]?.cover||tracks[0].cover}/><div><strong>{p.name}</strong><span>{p.tracks.length} tracks</span></div><Play size={18} fill="currentColor"/></button>)}{!playlists.length&&<div className="empty-playlists">No playlists yet. Create your first one.</div>}</div>{playlistEditor&&<div className="modal-backdrop" onClick={()=>setPlaylistEditor(null)}><div className="playlist-modal" onClick={e=>e.stopPropagation()}><div className="modal-head"><h2>Edit playlist</h2><button onClick={()=>setPlaylistEditor(null)}>×</button></div><label>Name<input value={playlistEditor.name} onChange={e=>update({name:e.target.value})}/></label><label>Description<textarea value={playlistEditor.description} onChange={e=>update({description:e.target.value})}/></label><div className="modal-actions"><button onClick={()=>setPlaylistEditor(null)}>Done</button></div></div></div>}</section>}
 
 function RadioPage({playTrack}){return <section className="page"><div className="radio-hero"><div><p className="eyebrow">MUSIC WITHOUT THE WORK</p><h1>Melodify Radio</h1><p className="sub">Endless mixes built around your mood.</p></div><button className="circle-btn" onClick={()=>playTrack(2)}><Play fill="currentColor"/></button></div><Section title="Stations"><div className="cards">{tracks.slice(1,5).map((t,i)=><TrackCard key={t.title} t={t} i={i+1} playTrack={playTrack}/>)}</div></Section></section>}
 
