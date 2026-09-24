@@ -3,15 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, User, X, PanelLeftClose, PanelRight } from 'lucide-react'
 import './styles.css'
 
-const tracks = [
-  { title:'Neon Heartbeat', artist:'Melodify', duration:222, lyrics:[["We're driving through the city lights",0],["with a neon heartbeat tonight",18],["Lost inside the sound",38],["until the morning comes",58],["Nothing but the radio",80],["and the glow of you and I",101]], cover:'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=900&q=80' },
-  { title:'Midnight Drive', artist:'Melodify', duration:228, lyrics:[["Streetlights blur across the glass",0],["we leave the world behind",16],["Midnight on the radio",34],["and nowhere else to go",53],["Every mile becomes a memory",74],["until the sunrise finds us",96]], cover:'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=80' },
-  { title:'Afterglow', artist:'Melodify', duration:216, lyrics:[["We stayed awake beneath the stars",0],["watching every color fade",15],["Afterglow around us",33],["nothing left to say",51],["Hold this moment a little longer",70],["before it slips away",92]], cover:'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=900&q=80' },
-  { title:'Velvet Skies', artist:'Melodify', duration:224, lyrics:[["Floating underneath the velvet skies",0],["we let the night decide",17],["Take me somewhere quiet",36],["where the city disappears",55],["All we need is this",76],["and the sound inside our ears",98]], cover:'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=80' },
-  { title:'Night Bloom', artist:'Melodify', duration:218, lyrics:[["The city sleeps but we are wide awake",0],["chasing every sound",16],["Watch the night bloom",34],["as the beat comes around",52],["We keep moving through the darkness",73],["until the morning breaks",94]], cover:'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=80' },
-  { title:'Electric Rain', artist:'Melodify', duration:220, lyrics:[["Electric rain is falling down",0],["neon running through the street",17],["We disappear into the sound",35],["every heartbeat finds the beat",54],["Keep the night alive",76],["until we finally breathe",98]], cover:'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80' },
-]
-
 const pages = {
   home: { label:'Home', icon:Home },
   search: { label:'Search', icon:Search },
@@ -24,16 +15,14 @@ const pages = {
 
 const JAMENDO_URL='https://api.jamendo.com/v3.0';
 const JAMENDO_CLIENT_ID=import.meta.env.VITE_JAMENDO_CLIENT_ID||'709fa152';
-async function searchMusic(query){
-  const q=query.trim(); if(!q)return [];
-  const url=JAMENDO_URL+'/tracks/?client_id='+encodeURIComponent(JAMENDO_CLIENT_ID)+'&format=json&limit=20&order=relevance&audioformat=mp32&search='+encodeURIComponent(q);
-  const res=await fetch(url); if(!res.ok)throw new Error('Music search failed');
-  const data=await res.json();
-  return (data.results||[]).filter(t=>t.audio).map(t=>({id:String(t.id),title:t.name||'Unknown track',artist:t.artist_name||'Unknown artist',duration:Number(t.duration)||0,cover:t.image||t.album_image||'',album:t.album_name||'Single',audioUrl:t.audio,license:t.license_ccurl||'',lyrics:[]}));
-}
+function mapJamendoTrack(t){return {id:String(t.id),title:t.name||'Unknown track',artist:t.artist_name||'Unknown artist',duration:Number(t.duration)||0,cover:t.image||t.album_image||'',album:t.album_name||'Single',audioUrl:t.audio||'',license:t.license_ccurl||'',lyrics:[]}}
+async function fetchJamendo(path){const res=await fetch(JAMENDO_URL+path);if(!res.ok)throw new Error('Jamendo request failed');const data=await res.json();if(data.headers?.status!=='success')throw new Error(data.headers?.error_message||'Jamendo request failed');return data.results||[]}
+async function searchMusic(query){const q=query.trim();if(!q)return [];const results=await fetchJamendo('/tracks/?client_id='+encodeURIComponent(JAMENDO_CLIENT_ID)+'&format=json&limit=30&order=relevance&audioformat=mp32&type=single+albumtrack&search='+encodeURIComponent(q));return results.filter(t=>t.audio).map(mapJamendoTrack)}
+async function getFeaturedMusic(){const results=await fetchJamendo('/charts/track/?client_id='+encodeURIComponent(JAMENDO_CLIENT_ID)+'&format=json&limit=20&audioformat=mp32');return results.filter(t=>t.audio).map(mapJamendoTrack)}
 function loadPlaylists(){try{return JSON.parse(localStorage.getItem('melodify-playlists')||'[]')}catch{return []}}
 function App(){
   const [page,setPage]=useState('home')
+  const [tracks,setTracks]=useState([])
   const [active,setActive]=useState(0)
   const [playing,setPlaying]=useState(false)
   const [lyricsPage,setLyricsPage]=useState(false)
@@ -50,22 +39,22 @@ function App(){
   const [remoteTrack,setRemoteTrack]=useState(null)
   const [volume,setVolume]=useState(1)
   const audioRef=useRef(null)
-  const track=remoteTrack||tracks[active]
+  const track=remoteTrack||tracks[active]||null
 
   useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
-  useEffect(()=>{const audio=audioRef.current;if(!audio||!track.audioUrl)return;audio.volume=volume;if(playing)audio.play().catch(()=>setPlaying(false));else audio.pause()},[playing,track.audioUrl,volume])
-  useEffect(()=>{if(track.audioUrl||!playing)return;const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000);return()=>clearInterval(id)},[playing,track.audioUrl,track.duration])
-  useEffect(()=>{setProgress(0)},[track.id])
-  const currentSeconds=Math.min((progress/100)*(track.duration||222),track.duration||222)
+  useEffect(()=>{let cancelled=false;(async()=>{try{const featured=await getFeaturedMusic();if(!cancelled)setTracks(featured)}catch(error){console.error('Jamendo catalog failed',error)}})();return()=>{cancelled=true}},[])
+  useEffect(()=>{const audio=audioRef.current;if(!audio||!track?.audioUrl)return;audio.volume=volume;if(playing)audio.play().catch(()=>setPlaying(false));else audio.pause()},[playing,track.audioUrl,volume])
+  useEffect(()=>{if(!track||track.audioUrl||!playing)return;const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000);return()=>clearInterval(id)},[playing,track.audioUrl,track.duration])
+  useEffect(()=>{setProgress(0)},[track?.id])
+  const currentSeconds=Math.min((progress/100)*(track?.duration||0),track?.duration||0)
   const formatTime=(seconds)=>{const s=Math.floor(seconds);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
 
-  const playTrack=(i)=>{setRemoteTrack(null);setActive(i);setProgress(0);setPlaying(true)}
+  const playTrack=(i)=>{if(!tracks[i])return;setRemoteTrack(null);setActive(i);setProgress(0);setPlaying(true)}
   const playMusicTrack=(t)=>{setRemoteTrack(t);setProgress(0);setPlaying(true)}
   const addToPlaylist=(playlistId,t)=>{setPlaylists(v=>v.map(p=>p.id===playlistId?{...p,tracks:p.tracks.some(x=>x.id===t.id)?p.tracks:[...p.tracks,t]}:p))}
   useEffect(()=>{if(page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{setMusicResults(await searchMusic(search));setSearchError('')}catch{setSearchError('Music search is temporarily unavailable.')}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page])
-  const filtered=tracks.filter(t=>(t.title+' '+t.artist).toLowerCase().includes(search.toLowerCase()))
 
-  return <div className="app"><audio ref={audioRef} src={track.audioUrl||undefined} onTimeUpdate={e=>track.audioUrl&&setProgress(e.currentTarget.duration?(e.currentTarget.currentTime/e.currentTarget.duration)*100:0)} onLoadedMetadata={e=>track.audioUrl&&setProgress((e.currentTarget.currentTime/e.currentTarget.duration)*100)} onEnded={()=>setPlaying(false)} preload="metadata" />
+  return <div className="app"><audio ref={audioRef} src={track?.audioUrl||undefined} onTimeUpdate={e=>track?.audioUrl&&setProgress(e.currentTarget.duration?(e.currentTarget.currentTime/e.currentTarget.duration)*100:0)} onLoadedMetadata={e=>track.audioUrl&&setProgress((e.currentTarget.currentTime/e.currentTarget.duration)*100)} onEnded={()=>setPlaying(false)} preload="metadata" />
     <aside className={"sidebar "+(sidebarOpen?"sidebar-open":"sidebar-collapsed")}>
       <div className="brand"><span className="brand-mark">M</span><span>Melodify</span></div>
       <nav>
@@ -82,8 +71,8 @@ function App(){
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="sidebar-toggle" onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar">{sidebarOpen?<PanelLeftClose size={17}/>:<PanelRight size={17}/>}</button><div className="arrows"><button><ChevronLeft/></button><button><ChevronRight/></button></div></div><div className="profile"><User size={16}/></div></header>
 
-      {page==='home' && <HomePage playTrack={playTrack} setPage={setPage}/>}
-      {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={filtered} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError} playMusicTrack={playMusicTrack} playlists={playlists} addToPlaylist={addToPlaylist}/>}
+      {page==='home' && <HomePage tracks={tracks} playTrack={playTrack} setPage={setPage}/>}
+      {page==='search' && <SearchPage search={search} setSearch={setSearch} tracks={tracks} playTrack={playTrack} musicResults={musicResults} searching={searching} searchError={searchError} playMusicTrack={playMusicTrack} playlists={playlists} addToPlaylist={addToPlaylist}/>}
       {page==='library' && <LibraryPage tracks={tracks} playTrack={playTrack}/>}
       {page==='liked' && <CollectionPage title="Liked Songs" subtitle="Your favorite tracks in one place." icon={Heart} tracks={tracks.slice(0,4)} playTrack={playTrack}/>}
       {page==='playlists' && <PlaylistsPage playlists={playlists} setPlaylists={setPlaylists} tracks={tracks} playTrack={playTrack} playMusicTrack={playMusicTrack} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} playlistEditor={playlistEditor} setPlaylistEditor={setPlaylistEditor}/>}
@@ -92,21 +81,21 @@ function App(){
       {lyricsPage && <LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
     </main>
 
-    {artistPanelOpen && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    <div className="now-playing">
+    {artistPanelOpen && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    {track && <div className="now-playing">
       <div className="apple-player-track"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div><div className="apple-track-meta"><strong>{track.title}</strong><span>{track.artist}</span></div><button className="apple-like"><Heart size={16}/></button></div>
       <div className="apple-player-center"><div className="apple-control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row" onClick={e=>{if(!track.audioUrl)return;const r=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-r.left)/r.width;setProgress(pct*100);if(audioRef.current&&audioRef.current.duration)audioRef.current.currentTime=pct*audioRef.current.duration}}><span>{formatTime(currentSeconds)}</span><div className="progress"><span style={{width:progress+'%'}}/></div><span>{formatTime(track.duration||222)}</span></div></div>
       <div className="apple-player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/><span>Lyrics</span></button><label className="volume-control"><Volume2 size={17}/><input aria-label="Volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={e=>setVolume(Number(e.target.value))}/></label><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
-    </div>
+    </div>}
   </div>
 }
 
 
 function ArtistSidebar({track,playTrack,active,close}){return <aside className="artist-sidebar"><div className="artist-sidebar-head"><span>NOW PLAYING</span><button onClick={close}><X size={16}/></button></div><div className="artist-feature"><img src={track.cover}/><div><strong>{track.artist}</strong><span>Artist</span></div><button className="follow-btn">Follow</button></div><div className="artist-section"><div className="artist-section-head"><h3>About the artist</h3><button>More</button></div><p>Melodify artists bring late-night sounds, neon moods and songs made for uninterrupted listening.</p></div><div className="artist-section"><h3>Popular</h3>{tracks.slice(0,4).map((t,i)=><button className={'artist-track '+(i===active?'current':'')} key={t.title} onClick={()=>playTrack(i)}><img src={t.cover}/><span><strong>{t.title}</strong><small>{t.artist}</small></span><Play size={14} fill="currentColor"/></button>)}</div></aside>}
-function HomePage({playTrack,setPage}){
+function HomePage({tracks,playTrack,setPage}){
  return <section className="page"><section className="hero"><div><p className="eyebrow">GOOD AFTERNOON</p><h1>Made for your mood.</h1><p className="sub">Your music, uninterrupted.</p></div><button className="circle-btn" onClick={()=>playTrack(0)}><Play fill="currentColor"/></button></section><Section title="Made for you" action="Show all" onAction={()=>setPage('library')}><div className="cards">{tracks.slice(0,4).map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section><Section title="Recently played"><div className="recent">{tracks.slice(0,5).map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>
 }
 
-function SearchPage({search,setSearch,tracks,playTrack,musicResults,searching,searchError,playMusicTrack,playlists,addToPlaylist}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search songs, artists or albums"/></div></div>{search.trim().length>=2?<Section title="Music catalog"><div className="recent">{searching?<div className="search-status">Searching the music catalog…</div>:searchError?<div className="search-status">{searchError}</div>:musicResults.length?musicResults.map(t=><div className="recent-row catalog-row" key={t.id}><button className="catalog-main" onClick={()=>playMusicTrack(t)}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist} · {t.album}</span></div><Play size={16} fill="currentColor"/></button><select aria-label={"Add "+t.title+" to playlist"} defaultValue="" onChange={e=>{if(e.target.value){addToPlaylist(e.target.value,t);e.target.value=''}}}><option value="">＋</option>{playlists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>):<div className="search-status">No catalog results found.</div>}</div></Section>:<Section title="Browse all"><div className="cards">{tracks.map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section>}</section>}
+function SearchPage({search,setSearch,tracks,playTrack,musicResults,searching,searchError,playMusicTrack,playlists,addToPlaylist}){return <section className="page"><div className="page-title"><p className="eyebrow">DISCOVER</p><h1>Search</h1><div className="search-box"><Search size={18}/><input autoFocus value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search songs, artists or albums"/></div></div>{search.trim().length>=2?<Section title="Music catalog"><div className="recent">{searching?<div className="search-status">Searching the music catalog…</div>:searchError?<div className="search-status">{searchError}</div>:musicResults.length?musicResults.map(t=><div className="recent-row catalog-row" key={t.id}><button className="catalog-main" onClick={()=>playMusicTrack(t)}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist} · {t.album}</span></div><Play size={16} fill="currentColor"/></button><select aria-label={"Add "+t.title+" to playlist"} defaultValue="" onChange={e=>{if(e.target.value){addToPlaylist(e.target.value,t);e.target.value=''}}}><option value="">＋</option>{playlists.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div>):<div className="search-status">No catalog results found.</div>}</div></Section>:<Section title="Trending on Jamendo"><div className="cards">{tracks.map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section>}</section>}
 
 function LibraryPage({tracks,playTrack}){return <section className="page"><div className="page-title"><p className="eyebrow">COLLECTION</p><h1>Your Library</h1><p className="sub">Everything you keep close.</p></div><Section title="Saved music"><div className="recent">{tracks.map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>}
 
