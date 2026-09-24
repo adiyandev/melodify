@@ -30,6 +30,7 @@ function App(){
   const [progress,setProgress]=useState(32)
   const [search,setSearch]=useState('')
   const [sidebarOpen,setSidebarOpen]=useState(true)
+  const [artistPanelOpen,setArtistPanelOpen]=useState(false)
   const track=tracks[active]
 
   useEffect(()=>{ if(!playing)return; const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000); return()=>clearInterval(id)},[playing,track.duration])
@@ -66,18 +67,18 @@ function App(){
       {lyricsPage && <LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
     </main>
 
-    <div className="now-playing">
+    {artistPanelOpen && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    <div className="now-playing">
       <div className="art-stage"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div></div>
       <div className="player-info"><div><strong>{track.title}</strong><span>{track.artist}</span></div><button><Heart size={17}/></button></div>
       <div className="controls"><div className="control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="play-main" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="progress"><span style={{width:progress+'%'}}/></div><div className="time"><span>{formatTime(currentSeconds)}</span><span>{formatTime(track.duration||222)}</span></div></div>
-      <div className="player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/>Lyrics</button><button><Volume2 size={17}/></button><button><Maximize2 size={16}/></button></div>
+      <div className="player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/>Lyrics</button><button><Volume2 size={17}/></button><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
 
     </div>
   </div>
 }
 
 
-function ArtistSidebar({track,playTrack,active}){return <aside className="artist-sidebar"><div className="artist-sidebar-head"><span>NOW PLAYING</span><button><X size={16}/></button></div><div className="artist-feature"><img src={track.cover}/><div><strong>{track.artist}</strong><span>Artist</span></div><button className="follow-btn">Follow</button></div><div className="artist-section"><div className="artist-section-head"><h3>About the artist</h3><button>More</button></div><p>Melodify artists bring late-night sounds, neon moods and songs made for uninterrupted listening.</p></div><div className="artist-section"><h3>Popular</h3>{tracks.slice(0,4).map((t,i)=><button className={'artist-track '+(i===active?'current':'')} key={t.title} onClick={()=>playTrack(i)}><img src={t.cover}/><span><strong>{t.title}</strong><small>{t.artist}</small></span><Play size={14} fill="currentColor"/></button>)}</div></aside>}
+function ArtistSidebar({track,playTrack,active,close}){return <aside className="artist-sidebar"><div className="artist-sidebar-head"><span>NOW PLAYING</span><button onClick={close}><X size={16}/></button></div><div className="artist-feature"><img src={track.cover}/><div><strong>{track.artist}</strong><span>Artist</span></div><button className="follow-btn">Follow</button></div><div className="artist-section"><div className="artist-section-head"><h3>About the artist</h3><button>More</button></div><p>Melodify artists bring late-night sounds, neon moods and songs made for uninterrupted listening.</p></div><div className="artist-section"><h3>Popular</h3>{tracks.slice(0,4).map((t,i)=><button className={'artist-track '+(i===active?'current':'')} key={t.title} onClick={()=>playTrack(i)}><img src={t.cover}/><span><strong>{t.title}</strong><small>{t.artist}</small></span><Play size={14} fill="currentColor"/></button>)}</div></aside>}
 function HomePage({playTrack,setPage}){
  return <section className="page"><section className="hero"><div><p className="eyebrow">GOOD AFTERNOON</p><h1>Made for your mood.</h1><p className="sub">Your music, uninterrupted.</p></div><button className="circle-btn" onClick={()=>playTrack(0)}><Play fill="currentColor"/></button></section><Section title="Made for you" action="Show all" onAction={()=>setPage('library')}><div className="cards">{tracks.slice(0,4).map((t,i)=><TrackCard key={t.title} t={t} i={i} playTrack={playTrack}/>)}</div></Section><Section title="Recently played"><div className="recent">{tracks.slice(0,5).map((t,i)=><RecentRow key={t.title} t={t} onClick={()=>playTrack(i)}/>)}</div></Section></section>
 }
