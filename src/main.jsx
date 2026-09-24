@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, Disc3, User, X } from 'lucide-react'
+import { Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Volume2, ListMusic, Maximize2, Music2, ChevronLeft, ChevronRight, Clock3, Radio, User, X, PanelLeftClose } from 'lucide-react'
 import './styles.css'
 
 const tracks = [
@@ -27,6 +27,7 @@ function App(){
   const [active,setActive]=useState(0)
   const [playing,setPlaying]=useState(false)
   const [lyrics,setLyrics]=useState(false)
+  const [lyricsPage,setLyricsPage]=useState(false)
   const [progress,setProgress]=useState(32)
   const [search,setSearch]=useState('')
   const track=tracks[active]
@@ -60,14 +61,15 @@ function App(){
       {page==='playlists' && <PlaylistsPage tracks={tracks} playTrack={playTrack}/>}
       {page==='history' && <CollectionPage title="Recently Played" subtitle="Pick up where you left off." icon={Clock3} tracks={tracks.slice().reverse()} playTrack={playTrack}/>}
       {page==='radio' && <RadioPage playTrack={playTrack}/>}
+      {lyricsPage && <LyricsPage track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)}/>} 
     </main>
 
     <div className="now-playing">
       <div className="art-stage"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div></div>
       <div className="player-info"><div><strong>{track.title}</strong><span>{track.artist}</span></div><button><Heart size={17}/></button></div>
       <div className="controls"><div className="control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="play-main" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="progress"><span style={{width:progress+'%'}}/></div><div className="time"><span>1:12</span><span>3:42</span></div></div>
-      <div className="player-actions"><button className={'lyrics '+(lyrics?'active':'')} onClick={()=>setLyrics(!lyrics)}><Music2 size={16}/>Lyrics</button><button><Volume2 size={17}/></button><button><Maximize2 size={16}/></button></div>
-      {lyrics&&<div className="lyrics-panel"><div className="lyrics-head"><span>LYRICS</span><button onClick={()=>setLyrics(false)}><X size={15}/></button></div><h3>{track.title}</h3><p>We're driving through the city lights<br/>with a neon heartbeat tonight...<br/><br/>Lost inside the sound<br/>until the morning comes.</p></div>}
+      <div className="player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/>Lyrics</button><button><Volume2 size={17}/></button><button><Maximize2 size={16}/></button></div>
+
     </div>
   </div>
 }
@@ -91,3 +93,5 @@ function TrackCard({t,i,playTrack}){return <button className="track-card" onClic
 function RecentRow({t,onClick}){return <button className="recent-row" onClick={onClick}><img src={t.cover}/><div><strong>{t.title}</strong><span>{t.artist}</span></div><Play size={16} fill="currentColor"/></button>}
 
 createRoot(document.getElementById('root')).render(<App />)
+
+function LyricsPage({track,playing,setPlaying,progress,setProgress,close}){return <div className="lyrics-page"><header className="lyrics-page-top"><button className="lyrics-back" onClick={close}><ChevronLeft size={19}/><span>Back</span></button><div className="lyrics-label">NOW PLAYING</div><button className="lyrics-more"><PanelLeftClose size={17}/></button></header><div className="lyrics-layout"><div className="lyrics-art-wrap"><div className="lyrics-art"><img src={track.cover}/></div><div className="lyrics-track"><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-content"><p className="eyebrow">LYRICS</p><h1>{track.title}</h1><div className="lyrics-scroll"><p className="lyrics-line muted">We're driving through the city lights</p><p className="lyrics-line active-line">with a neon heartbeat tonight</p><p className="lyrics-line">Lost inside the sound</p><p className="lyrics-line">until the morning comes</p><p className="lyrics-line dim">Nothing but the radio</p><p className="lyrics-line dim">and the glow of you and I</p></div></div></div><div className="lyrics-player"><div className="mini-track"><img src={track.cover}/><div><strong>{track.title}</strong><span>{track.artist}</span></div></div><div className="lyrics-controls"><div><button><SkipBack size={17}/></button><button className="lyrics-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause size={16} fill="currentColor"/>:<Play size={16} fill="currentColor"/>}</button><button><SkipForward size={17}/></button></div><div className="lyrics-progress"><span style={{width:progress+'%'}}/></div></div><div className="lyrics-actions"><button><Heart size={17}/></button><button><Volume2 size={17}/></button></div></div></div>}
