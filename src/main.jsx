@@ -43,8 +43,8 @@ function App(){
 
   useEffect(()=>{localStorage.setItem('melodify-playlists',JSON.stringify(playlists))},[playlists])
   useEffect(()=>{let cancelled=false;(async()=>{try{const featured=await getFeaturedMusic();if(!cancelled)setTracks(featured)}catch(error){console.error('Jamendo catalog failed',error)}})();return()=>{cancelled=true}},[])
-  useEffect(()=>{const audio=audioRef.current;if(!audio||!track?.audioUrl)return;audio.volume=volume;if(playing)audio.play().catch(()=>setPlaying(false));else audio.pause()},[playing,track.audioUrl,volume])
-  useEffect(()=>{if(!track||track.audioUrl||!playing)return;const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000);return()=>clearInterval(id)},[playing,track.audioUrl,track.duration])
+  useEffect(()=>{const audio=audioRef.current;if(!audio||!track?.audioUrl)return;audio.volume=volume;if(playing)audio.play().catch(()=>setPlaying(false));else audio.pause()},[playing,track?.audioUrl,volume])
+  useEffect(()=>{if(!track||track.audioUrl||!playing)return;const id=setInterval(()=>setProgress(p=>p>=100?0:p+100/(track.duration||222)),1000);return()=>clearInterval(id)},[playing,track?.audioUrl,track?.duration])
   useEffect(()=>{setProgress(0)},[track?.id])
   const currentSeconds=Math.min((progress/100)*(track?.duration||0),track?.duration||0)
   const formatTime=(seconds)=>{const s=Math.floor(seconds);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
@@ -54,7 +54,7 @@ function App(){
   const addToPlaylist=(playlistId,t)=>{setPlaylists(v=>v.map(p=>p.id===playlistId?{...p,tracks:p.tracks.some(x=>x.id===t.id)?p.tracks:[...p.tracks,t]}:p))}
   useEffect(()=>{if(page!=='search'||search.trim().length<2){setMusicResults([]);setSearchError('');return}const timer=setTimeout(async()=>{setSearching(true);try{setMusicResults(await searchMusic(search));setSearchError('')}catch{setSearchError('Music search is temporarily unavailable.')}finally{setSearching(false)}},450);return()=>clearTimeout(timer)},[search,page])
 
-  return <div className="app"><audio ref={audioRef} src={track?.audioUrl||undefined} onTimeUpdate={e=>track?.audioUrl&&setProgress(e.currentTarget.duration?(e.currentTarget.currentTime/e.currentTarget.duration)*100:0)} onLoadedMetadata={e=>track.audioUrl&&setProgress((e.currentTarget.currentTime/e.currentTarget.duration)*100)} onEnded={()=>setPlaying(false)} preload="metadata" />
+  return <div className="app"><audio ref={audioRef} src={track?.audioUrl||undefined} onTimeUpdate={e=>track?.audioUrl&&setProgress(e.currentTarget.duration?(e.currentTarget.currentTime/e.currentTarget.duration)*100:0)} onLoadedMetadata={e=>track?.audioUrl&&setProgress((e.currentTarget.currentTime/e.currentTarget.duration)*100)} onEnded={()=>setPlaying(false)} preload="metadata" />
     <aside className={"sidebar "+(sidebarOpen?"sidebar-open":"sidebar-collapsed")}>
       <div className="brand"><span className="brand-mark">M</span><span>Melodify</span></div>
       <nav>
@@ -81,9 +81,9 @@ function App(){
       {lyricsPage && <LyricsPage sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} track={track} playing={playing} setPlaying={setPlaying} progress={progress} setProgress={setProgress} close={()=>setLyricsPage(false)} formatTime={formatTime}/>} 
     </main>
 
-    {artistPanelOpen && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    {track && <div className="now-playing">
+    {artistPanelOpen && track && <ArtistSidebar track={track} playTrack={playTrack} active={active} close={()=>setArtistPanelOpen(false)}/>}\n\n    {track && <div className="now-playing">
       <div className="apple-player-track"><div className={'disc '+(playing?'spinning':'')}><img src={track.cover}/><span/></div><div className="apple-track-meta"><strong>{track.title}</strong><span>{track.artist}</span></div><button className="apple-like"><Heart size={16}/></button></div>
-      <div className="apple-player-center"><div className="apple-control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row" onClick={e=>{if(!track.audioUrl)return;const r=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-r.left)/r.width;setProgress(pct*100);if(audioRef.current&&audioRef.current.duration)audioRef.current.currentTime=pct*audioRef.current.duration}}><span>{formatTime(currentSeconds)}</span><div className="progress"><span style={{width:progress+'%'}}/></div><span>{formatTime(track.duration||222)}</span></div></div>
+      <div className="apple-player-center"><div className="apple-control-row"><button onClick={()=>playTrack((active-1+tracks.length)%tracks.length)}><SkipBack fill="currentColor"/></button><button className="apple-play" onClick={()=>setPlaying(!playing)}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button><button onClick={()=>playTrack((active+1)%tracks.length)}><SkipForward fill="currentColor"/></button></div><div className="apple-progress-row" onClick={e=>{if(!track?.audioUrl)return;const r=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-r.left)/r.width;setProgress(pct*100);if(audioRef.current&&audioRef.current.duration)audioRef.current.currentTime=pct*audioRef.current.duration}}><span>{formatTime(currentSeconds)}</span><div className="progress"><span style={{width:progress+'%'}}/></div><span>{formatTime(track.duration||222)}</span></div></div>
       <div className="apple-player-actions"><button className={'lyrics '+(lyricsPage?'active':'')} onClick={()=>setLyricsPage(true)}><Music2 size={16}/><span>Lyrics</span></button><label className="volume-control"><Volume2 size={17}/><input aria-label="Volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={e=>setVolume(Number(e.target.value))}/></label><button onClick={()=>setArtistPanelOpen(v=>!v)} className={artistPanelOpen?'panel-active':''}><PanelRight size={16}/></button><button><Maximize2 size={16}/></button></div>
     </div>}
   </div>
